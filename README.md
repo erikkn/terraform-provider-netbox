@@ -1,10 +1,10 @@
 # Netbox Terraform Provider
 This is a Terraform provider for Netbox. Find out more about [Netbox](https://netbox.readthedocs.io/en/stable/).
 
-## Prologue
-Special thanks to [Taras Burko](https://github.com/tburko) who mentored and taught me a lot, not only around this project. Thank you, Taras :bike: !
-
-## Requirements
+## Preface
+Special thanks to
+- [Taavi Tuisk](https://github.com/taavituisk) who mentored and taught me soo much around (AWS) Networking. Thank you, Taavi :vodka: !
+- [Taras Burko](https://github.com/tburko) who mentored and taught me a lot, not only around this plugin, but also around personal development. Thank you, Taras :bike: !
 
 ## Quickstart
 You need a working Netbox setup in order to use this provider. Check the Netbox [docs](https://github.com/netbox-community/netbox-docker/wiki/Getting-Started) how to get started.
