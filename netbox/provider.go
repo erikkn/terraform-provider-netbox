@@ -12,7 +12,7 @@ func Provider() *schema.Provider {
 				Description: "API key of your Netbox user",
 				Type:        schema.TypeString,
 				Required:    true,
-				Sensitive:   true, // Make sure that the API key is not shown in the log.
+				Sensitive:   true, // Makes sure that the API key is not shown in the log.
 			},
 			"host": {
 				Description: "Address of your Netbox endpoint, e.g. 127.0.0.1 or example.com",
@@ -20,6 +20,10 @@ func Provider() *schema.Provider {
 				Required:    true,
 				Sensitive:   false,
 			},
+		},
+
+		ResourcesMap: map[string]*schema.Resource{
+			"netbox_ip_address": resourceIPAddress(),
 		},
 
 		DataSourcesMap: map[string]*schema.Resource{

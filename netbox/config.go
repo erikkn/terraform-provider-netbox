@@ -11,7 +11,7 @@ type Config struct {
 }
 
 type Client struct {
-	*client.NetBox
+	*client.NetBoxAPI
 }
 
 func (c *Config) Client() (interface{}, error) {
