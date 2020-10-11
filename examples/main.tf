@@ -3,12 +3,11 @@ provider "netbox" {
   host    = "127.0.0.1:8000"
 }
 
-data "netbox_ip_address" "foobar" {
-  //cidr_block = "1.1.1.1/32"
-  dns_name = "razu.ee"
-  //  address_family = "IPv4"
-}
+resource "netbox_ip_address" "test" {
+  address     = "1.1.1.21/32"
+  description = "test dinges4"
+  dns_name    = "test4.example.com"
+  role        = "vrrp"
 
-//output "foobar" {
-//  value = data.netbox_ip_address.foobar.cidr_block
-//}
+  tags = ["test5", "test7"]
+}

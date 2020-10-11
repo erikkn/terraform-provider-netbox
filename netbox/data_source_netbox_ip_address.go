@@ -33,15 +33,29 @@ func dataSourceIPAddress() *schema.Resource {
 				Description: "The name of the role that is associated with the CIDR",
 				Type:        schema.TypeString,
 				Optional:    true,
-				Computed:    false,
+				Computed:    true,
 			},
 
 			"role_id": {
 				Description: "The ID of the role that is associated with the CIDR",
 				Type:        schema.TypeString,
 				Optional:    true,
-				Computed:    false,
+				Computed:    true,
 			},
+
+			"tags": {
+				Description: "Tags that are configured on your ip-address",
+				Type:        schema.TypeString,
+				Optional:    true,
+				Computed:    true,
+			},
+
+			//			"tags": {
+			//				Description: "Tags that are configured on your CIDR.",
+			//				Type:        schema.TypeList,
+			//				Optional:    true,
+			//				Computed:    true,
+			//			},
 		},
 	}
 }
@@ -52,10 +66,13 @@ func dataSourceIPAddressRead(d *schema.ResourceData, meta interface{}) error {
 
 	address := d.Get("cidr_block").(string)
 	dnsName := d.Get("dns_name").(string)
+	//tag := d.Get("tag").(string)
+	//tags := d.Get("tags").([]interface{})
 
 	params := ipam.IpamIPAddressesListParams{
 		Address: &address,
 		DNSName: &dnsName,
+		//	Tag:     &tag,
 		Context: context.Background(),
 	}
 
@@ -65,7 +82,7 @@ func dataSourceIPAddressRead(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	for _, v := range ipLookup.Payload.Results {
-		d.SetId("123") // !: Change needed!
+		d.SetId(fmt.Sprintf("ip-%d", v.ID))
 		d.Set("cidr_block", *v.Address)
 		d.Set("dns_name", v.DNSName)
 
@@ -78,6 +95,7 @@ func dataSourceIPAddressRead(d *schema.ResourceData, meta interface{}) error {
 			d.Set("role_id", *v.Role.Value)
 		}
 
+		//d.Set("tags", v.Tags)
 	}
 
 	return nil

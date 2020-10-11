@@ -1,6 +1,7 @@
 build/
 
 .terraform/
+crash.log
 terraform.tfstate
 terraform.tfstate.backup
 terraform-provider-netbox
