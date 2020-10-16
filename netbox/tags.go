@@ -8,59 +8,50 @@ import (
 	"github.com/netbox-community/go-netbox/netbox/models"
 )
 
-// Checks whether a tag already exists in Netbox.
-func tagExists(tag string, meta interface{}) (bool, error) {
-	conn := meta.(*Client).Extras
-
-	params := extras.NewExtrasTagsListParams().WithName(&tag)
-	exist, err := conn.ExtrasTagsList(params, nil)
+func tagExists(t *string, conn extras.ClientService) (exists bool, err error) {
+	// Using the `ListParams` method here instead of `Read`, because we want to lookup the tag based on the `Name`.
+	params := extras.NewExtrasTagsListParams().WithName(t)
+	fetch, err := conn.ExtrasTagsList(params, nil)
 	if err != nil {
-		log.Printf("[ERROR] Error while fetching the tag '%s' with error message: %s", tag, err)
+		log.Printf("[ERROR] error fetching tag '%s' with error message: '%s'", *t, err)
 		return false, err
 	}
+	log.Printf("[INFO] successfully fetched tag '%s' from upstream", *t)
 
-	if *exist.Payload.Count < 1 {
+	if len(fetch.Payload.Results) < 1 {
+		log.Printf("[DEBUG] tag '%s' not found, meaning it doesn't exist. Returning False.", *t)
 		return false, nil
 	}
 
 	return true, nil
 }
 
-// Creates the tags that don't exist yet (by callin the `tagExist`).
-func createTag(tags []string, meta interface{}) (nestedTags []*models.NestedTag, err error) {
-	conn := meta.(*Client).Extras
-	tagsToCreate := []string{}
-	// TODO: Intializing an empty slice will result in an memory error. Adding a default value works for now, because NetBox automatically gets rid of duplicated tags.
-	returnTags := []*models.NestedTag{{Name: &tags[0], Slug: &tags[0]}}
+func createTag(t *[]interface{}, conn extras.ClientService) (nestedTags []*models.NestedTag, err error) {
+	var nestedTag []*models.NestedTag
 
-	for _, v := range tags {
-		t := fmt.Sprint(v)
-		returnTags = append(returnTags, &models.NestedTag{Name: &t, Slug: &t})
-
-		ok, err := tagExists(v, meta)
+	for _, v := range *t {
+		tag := fmt.Sprint(v)
+		nestedTag = append(nestedTag, &models.NestedTag{Name: &tag, Slug: &tag})
+		exists, err := tagExists(&tag, conn)
 		if err != nil {
-			log.Printf("[ERROR] error while checking tag '%s' exists, with error: %s", v, err)
+			log.Printf("[ERROR] error checking if '%s' exists with error message: %s", tag, err)
 			return nil, err
 		}
 
-		if !ok {
-			tagsToCreate = append(tagsToCreate, v)
+		if !exists {
+			data := &models.Tag{
+				Name: &tag,
+				Slug: &tag,
+			}
+
+			params := extras.NewExtrasTagsCreateParams().WithData(data)
+			if _, err := conn.ExtrasTagsCreate(params, nil); err != nil {
+				log.Printf("[ERROR] error creating tag '%s' with error message: %s", tag, err)
+				return nil, err
+			}
+			log.Printf("[DEBUG] successfully created the non-existing tag '%s' ", tag)
 		}
 	}
 
-	for _, v := range tagsToCreate {
-		t := fmt.Sprint(v)
-		data := models.Tag{
-			Name: &t,
-			Slug: &t,
-		}
-
-		params := extras.NewExtrasTagsCreateParams().WithData(&data)
-		if _, err := conn.ExtrasTagsCreate(params, nil); err != nil {
-			log.Printf("[ERROR] error while creating tag '%s' with error: %s", v, err)
-			return nil, err
-		}
-	}
-
-	return returnTags, nil
+	return nestedTag, nil
 }

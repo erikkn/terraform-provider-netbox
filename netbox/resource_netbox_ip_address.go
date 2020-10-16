@@ -19,7 +19,7 @@ func resourceIPAddress() *schema.Resource {
 
 		Schema: map[string]*schema.Schema{
 			"address": {
-				Description: "The CIDR you want to create, e.g. 192.168.96.0/20",
+				Description: "(Required) The address that you would like to create, e.g. 192.168.96.0/20.",
 				Type:        schema.TypeString,
 				Required:    true,
 				ForceNew:    true,
@@ -33,24 +33,40 @@ func resourceIPAddress() *schema.Resource {
 			},
 
 			"dns_name": {
-				Description: "(Optional) String value of the DNS name you want to associate with this CIDR",
+				Description: "(Optional) String value of the DNS name you want to associate with this address",
 				Type:        schema.TypeString,
 				Optional:    true,
 				ForceNew:    false,
 			},
 
 			"net_family": {
-				Description: "(Optional) Address Family Number (e.g. IPv4 or IPv6) of your CIDR. Default is IPv4",
+				Description: "(Optional) Net Family number (e.g. IPv4 or IPv6) of your address. Default is IPv4",
 				Type:        schema.TypeString,
 				Optional:    true,
 				ForceNew:    true,
 				Default:     "IPv4",
 			},
 
-			"role": {
-				Description: "(Optional) The functional role of this CIDR, e.g. VPC, subnet, etc.",
+			// TODO: Make this required?
+			"tenant_group": {
+				Description: "(Required) The tenant group organizes the individual tenants. An example of such group is `payment partners` and the tenant is a specific partner, e.g. `example` (see the `tenant` attribute).",
 				Type:        schema.TypeString,
-				Required:    true,
+				Optional:    true,
+				ForceNew:    false,
+			},
+
+			// TODO: Make this required?
+			"tenant": {
+				Description: "(Required) The tenant field is used to signify the ownership of the address. Typically, tenants are used to represent internal departments, partners, AWS account, etc.",
+				Type:        schema.TypeString,
+				Optional:    true,
+				ForceNew:    false,
+			},
+
+			"role": {
+				Description: "(Optional) The functional role of this address; Roles are used to indicate some special attribute to the IP address. Valid values are `Loopback`, `Secondary`, `Anycast`, `VIP`, `VRRP`, `HSRP`, `GLBP`",
+				Type:        schema.TypeString,
+				Optional:    true,
 				ForceNew:    false,
 			},
 
@@ -68,7 +84,9 @@ func resourceIPAddress() *schema.Resource {
 }
 
 func resourceIPAddressCreate(d *schema.ResourceData, meta interface{}) error {
-	conn := meta.(*Client).Ipam
+	conn := meta.(*Client)
+	ipamClient := conn.Ipam
+	extrasClient := conn.Extras
 
 	address := d.Get("address").(string)
 	description := d.Get("description").(string)
@@ -77,15 +95,9 @@ func resourceIPAddressCreate(d *schema.ResourceData, meta interface{}) error {
 	role := d.Get("role").(string)
 	rawTags := d.Get("tags").(*schema.Set).List()
 
-	// rawTags is a []interface, we need []string
-	rawTagsString := make([]string, len(rawTags))
-	for i, v := range rawTags {
-		rawTagsString[i] = fmt.Sprint(v)
-	}
-
-	tags, err := createTag(rawTagsString, meta)
+	tags, err := createTag(&rawTags, extrasClient)
 	if err != nil {
-		fmt.Errorf("[ERROR] error creating tags with error: %s", err)
+		fmt.Errorf("[ERROR] error creating tags: %s", err)
 	}
 
 	params := ipam.NewIpamIPAddressesCreateParams()
@@ -98,7 +110,7 @@ func resourceIPAddressCreate(d *schema.ResourceData, meta interface{}) error {
 		Tags:        tags,
 	})
 
-	ip, err := conn.IpamIPAddressesCreate(params, nil)
+	ip, err := ipamClient.IpamIPAddressesCreate(params, nil)
 	if err != nil {
 		return fmt.Errorf("[ERROR] Error creating the IP address: %s", err)
 	}
@@ -110,14 +122,13 @@ func resourceIPAddressCreate(d *schema.ResourceData, meta interface{}) error {
 	return nil
 }
 
+// TODO: Double check the READ function, do I need the `HasChange` method?
 func resourceIPAddressRead(d *schema.ResourceData, meta interface{}) error {
 	conn := meta.(*Client).Ipam
 
 	ipID := d.Id()
-	log.Printf("ADDRESS ID IS (READ): ", ipID)
 
 	params := ipam.NewIpamIPAddressesListParams().WithID(&ipID)
-
 	fetch, err := conn.IpamIPAddressesList(params, nil)
 	if err != nil {
 		log.Printf("[WARN] IP address not found, removing from state")
@@ -139,7 +150,9 @@ func resourceIPAddressRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceIPAddressUpdate(d *schema.ResourceData, meta interface{}) error {
-	conn := meta.(*Client).Ipam
+	conn := meta.(*Client)
+	ipamClient := conn.Ipam
+	extrasClient := conn.Extras
 
 	ipID, err := strconv.ParseInt(d.Id(), 10, 64)
 	if err != nil {
@@ -152,15 +165,9 @@ func resourceIPAddressUpdate(d *schema.ResourceData, meta interface{}) error {
 	role := d.Get("role").(string)
 	rawTags := d.Get("tags").(*schema.Set).List()
 
-	// rawTags is a []interface, we need []string
-	rawTagsString := make([]string, len(rawTags))
-	for i, v := range rawTags {
-		rawTagsString[i] = fmt.Sprint(v)
-	}
-
-	tags, err := createTag(rawTagsString, meta)
+	tags, err := createTag(&rawTags, extrasClient)
 	if err != nil {
-		return fmt.Errorf("[ERROR] error creating the tags with error message: %s", err)
+		fmt.Errorf("[ERROR] error creating tags: %s", err)
 	}
 
 	params := ipam.NewIpamIPAddressesPartialUpdateParams().WithID(ipID)
@@ -172,7 +179,7 @@ func resourceIPAddressUpdate(d *schema.ResourceData, meta interface{}) error {
 		Tags:        tags,
 	})
 
-	if _, err := conn.IpamIPAddressesPartialUpdate(params, nil); err != nil {
+	if _, err := ipamClient.IpamIPAddressesPartialUpdate(params, nil); err != nil {
 		return fmt.Errorf("[ERROR] error while updating address '%s' with error message: %s", address, err)
 	}
 

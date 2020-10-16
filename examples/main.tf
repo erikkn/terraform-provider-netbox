@@ -3,11 +3,15 @@ provider "netbox" {
   host    = "127.0.0.1:8000"
 }
 
-resource "netbox_ip_address" "test" {
-  address     = "1.1.1.21/32"
-  description = "test dinges4"
-  dns_name    = "test4.example.com"
+resource "netbox_ip_address" "foobar" {
+  address     = "1.1.1.1/32"
+  description = "Example IP address"
+  dns_name    = "foobar.example.com"
   role        = "vrrp"
 
-  tags = ["test5", "test7"]
+  tags = [
+    "foobar1",
+    "foobar2",
+    "foobar3",
+  ]
 }
