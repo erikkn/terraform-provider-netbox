@@ -24,6 +24,8 @@ func Provider() *schema.Provider {
 
 		ResourcesMap: map[string]*schema.Resource{
 			"netbox_ip_address": resourceIPAddress(),
+			//"netbox_prefix":       resourcePrefix(),
+			"netbox_child_prefix": resourcePrefixChild(),
 		},
 
 		DataSourcesMap: map[string]*schema.Resource{

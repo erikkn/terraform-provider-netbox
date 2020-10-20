@@ -47,22 +47,6 @@ func resourceIPAddress() *schema.Resource {
 				Default:     "IPv4",
 			},
 
-			// TODO: Make this required?
-			"tenant_group": {
-				Description: "(Required) The tenant group organizes the individual tenants. An example of such group is `payment partners` and the tenant is a specific partner, e.g. `example` (see the `tenant` attribute).",
-				Type:        schema.TypeString,
-				Optional:    true,
-				ForceNew:    false,
-			},
-
-			// TODO: Make this required?
-			"tenant": {
-				Description: "(Required) The tenant field is used to signify the ownership of the address. Typically, tenants are used to represent internal departments, partners, AWS account, etc.",
-				Type:        schema.TypeString,
-				Optional:    true,
-				ForceNew:    false,
-			},
-
 			"role": {
 				Description: "(Optional) The functional role of this address; Roles are used to indicate some special attribute to the IP address. Valid values are `Loopback`, `Secondary`, `Anycast`, `VIP`, `VRRP`, `HSRP`, `GLBP`",
 				Type:        schema.TypeString,
@@ -93,11 +77,11 @@ func resourceIPAddressCreate(d *schema.ResourceData, meta interface{}) error {
 	dnsName := d.Get("dns_name").(string)
 	netFamily := d.Get("net_family").(string)
 	role := d.Get("role").(string)
-	rawTags := d.Get("tags").(*schema.Set).List()
+	var rawTags []interface{} = d.Get("tags").(*schema.Set).List()
 
-	tags, err := createTag(&rawTags, extrasClient)
+	tags, err := nestedTagCreate(&rawTags, extrasClient)
 	if err != nil {
-		fmt.Errorf("[ERROR] error creating tags: %s", err)
+		return fmt.Errorf("[ERROR] error creating tags: %s", err)
 	}
 
 	params := ipam.NewIpamIPAddressesCreateParams()
@@ -122,29 +106,37 @@ func resourceIPAddressCreate(d *schema.ResourceData, meta interface{}) error {
 	return nil
 }
 
-// TODO: Double check the READ function, do I need the `HasChange` method?
 func resourceIPAddressRead(d *schema.ResourceData, meta interface{}) error {
 	conn := meta.(*Client).Ipam
 
-	ipID := d.Id()
-
-	params := ipam.NewIpamIPAddressesListParams().WithID(&ipID)
-	fetch, err := conn.IpamIPAddressesList(params, nil)
+	ipID, err := strconv.ParseInt(d.Id(), 10, 64)
 	if err != nil {
-		log.Printf("[WARN] IP address not found, removing from state")
+		return fmt.Errorf("[ERROR] unable to convert ID '%s' to int64 with error message: %s", d.Id(), err)
+	}
+
+	params := ipam.NewIpamIPAddressesReadParams().WithID(ipID)
+	fetch, err := conn.IpamIPAddressesRead(params, nil)
+	if err != nil {
+		return fmt.Errorf("[ERROR] unable to fetch the IP address with error message: %s", err)
+	}
+
+	if fetch == nil {
+		log.Printf("[WARN] IP address with ID '%d' not found in Netbox; Removing from state.", ipID)
 		d.SetId("")
 		return nil
 	}
-	log.Printf("[INFO]: Fetching IP address successful")
 
-	// TODO: Add tags to the d.Set
-	for _, v := range fetch.Payload.Results {
-		d.Set("address", *v.Address)
-		d.Set("description", v.Description)
-		d.Set("dns_name", v.DNSName)
-		d.Set("net_family", v.Family)
-		d.Set("role", v.Role)
+	tags := make([]string, 0, len(fetch.Payload.Tags))
+	for _, v := range fetch.Payload.Tags {
+		tags = append(tags, *v.Name)
 	}
+
+	d.Set("address", *fetch.Payload.Address)
+	d.Set("description", fetch.Payload.Description)
+	d.Set("dns_name", fetch.Payload.DNSName)
+	d.Set("net_family", fetch.Payload.Family)
+	d.Set("role", fetch.Payload.Role)
+	d.Set("tags", tags)
 
 	return nil
 }
@@ -163,11 +155,11 @@ func resourceIPAddressUpdate(d *schema.ResourceData, meta interface{}) error {
 	description := d.Get("description").(string)
 	dnsName := d.Get("dns_name").(string)
 	role := d.Get("role").(string)
-	rawTags := d.Get("tags").(*schema.Set).List()
+	var rawTags []interface{} = d.Get("tags").(*schema.Set).List()
 
-	tags, err := createTag(&rawTags, extrasClient)
+	tags, err := nestedTagCreate(&rawTags, extrasClient)
 	if err != nil {
-		fmt.Errorf("[ERROR] error creating tags: %s", err)
+		return fmt.Errorf("[ERROR] error creating tags: %s", err)
 	}
 
 	params := ipam.NewIpamIPAddressesPartialUpdateParams().WithID(ipID)
@@ -194,8 +186,8 @@ func resourceIPAddressDelete(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("[ERROR] error conversing ID '%d' with error: %s", ipID, err)
 	}
 
-	params := ipam.NewIpamIPAddressesDeleteParams()
-	params.SetID(ipID)
+	params := ipam.NewIpamIPAddressesDeleteParams().WithID(ipID)
+	//params.SetID(ipID)
 
 	if _, err := conn.IpamIPAddressesDelete(params, nil); err != nil {
 		return fmt.Errorf("[ERROR] error while deleting the IP address with error: %s", err)
